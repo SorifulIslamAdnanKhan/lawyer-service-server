@@ -16,15 +16,18 @@ app.use(cors());
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASSWORD}@cluster0.3aa5vlu.mongodb.net/?retryWrites=true&w=majority`;
 const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true, serverApi: ServerApiVersion.v1 });
 
-async function verifyToken(req, res, next){
+function verifyToken(req, res, next) {
     const authHeader = req.headers.authorization;
-    if(!authHeader){
-        return res.status(401).send({message: 'Unauthorized Access'});
+
+    if (!authHeader) {
+        return res.status(401).send({ message: 'Unauthorized Access' });
     }
+
     const token = authHeader.split(' ')[1];
-    jwt.verify(token, process.env.ACCESS_TOKEN, function(err, decoded){
-        if(err){
-            return res.status(403).send({message: 'Forbidden Access'});
+
+    jwt.verify(token, process.env.ACCESS_TOKEN, function (err, decoded) {
+        if (err) {
+            return res.status(403).send({ message: 'Forbidden Access' });
         }
         req.decoded = decoded;
         next();
@@ -39,7 +42,6 @@ async function run() {
         //JWT
         app.post('/jwt', async (req, res) => {
             const user = req.body;
-            console.log(user);
             const token = jwt.sign(user, process.env.ACCESS_TOKEN, { expiresIn: '1d' })
             res.send({ token })
         })
@@ -77,34 +79,37 @@ async function run() {
         // insert review to database 
         app.post('/add-review', async (req, res) => {
             const review = req.body;
-            const result = await reviewCollection.insertOne(review);
-            console.log(result);
+            const date = new Date();
+            const result = await reviewCollection.insertOne({ ...review, date });
             res.send(result);
         });
 
         // get all reviews data
         app.get('/reviews', async (req, res) => {
             const query = {};
-            const data = await reviewCollection.find(query).toArray();
-            res.send(data)
+            const cursor =  reviewCollection.find(query);
+            const result = await cursor.toArray();
+            res.send(result)
         });
 
         // get reviews based on service
         app.get('/reviews/:id', async (req, res) => {
             const id = req.params.id;
             const query = { serviceID: id };
-            const reviews = await reviewCollection.find(query).toArray();
-            res.send(reviews);
+            const cursor =  reviewCollection.find(query).sort({ date: -1 })
+            const final = await cursor.toArray();
+            res.send(final);
         });
 
         app.get('/my-reviews', verifyToken, async (req, res) => {
 
             const decoded = req.decoded;
-            if(decoded.email !== req.query.email){
-                res.status(403).send({message: 'Forbidden Access'})
+            if (decoded.email !== req.query.email) {
+                res.status(403).send({ message: 'Forbidden Access' })
             }
 
             let query = {};
+
             if (req.query.email) {
                 query = {
                     email: req.query.email
@@ -133,8 +138,6 @@ async function run() {
         app.patch('/singlereview/:id', async (req, res) => {
             const id = req.params.id;
             const query = { _id: ObjectId(id) }
-            const updateReview = req.body;
-            console.log(updateReview);
             const review = req.body.review;
             const rating = req.body.rating;
             const updatedDoc = {
@@ -159,5 +162,5 @@ app.get('/', (req, res) => {
 });
 
 app.listen(port, () => {
-    console.log('running');
+    console.log('Server running');
 });
